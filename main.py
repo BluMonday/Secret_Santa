@@ -1,5 +1,3 @@
-from colorama import init
-from colorama import Fore, Back, Style
 import random
 
 class Person:
@@ -38,7 +36,7 @@ def save_results(people):
         f.close()
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
-    names = ["Peter", "Paige", "Rob", "Cindy", "Carrie", "Cody", "Dale"]
+    all_names = ["Peter", "Paige", "Rob", "Cindy", "Carrie", "Cody", "Dale"]
     people = [Person("Peter",["Paige"]),
               Person("Paige", ["Peter"]),
               Person("Rob", ["Cindy"]),
@@ -47,18 +45,29 @@ if __name__ == '__main__':
               Person("Cody", "Carrie"),
               Person("Dale", ""),
               ]
-
-    random.shuffle(people)
-    for person in people:
-        match_candidates = [x for x in names if x != person.name and x not in person.exclusions]
-        random.shuffle(match_candidates)
-        person.match = match_candidates[0]
-        names.remove(person.match)
+    while True:
+        try:
+            # copy by value
+            remaining_names = all_names[:]
+            random.shuffle(people)
+            for person in people:
+                match_candidates = [x for x in remaining_names if x != person.name and x not in person.exclusions]
+                random.shuffle(match_candidates)
+                person.match = match_candidates[0]
+                remaining_names.remove(person.match)
+        except:
+            print("Invalid. Trying again...")
+            continue
+        else:
+            if cycle_check(people):
+                save_results(people)
+                break
+            else:
+                continue
 
     # printout names for testing
     if False:
         for person in people:
             print(person)
 
-    if cycle_check(people):
-        save_results(people)
+
