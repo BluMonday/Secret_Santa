@@ -1,4 +1,5 @@
 import random
+import os
 
 class Person:
     def __init__(self, name, exclusions):
@@ -31,11 +32,13 @@ def cycle_check(people):
 
 def save_results(people):
     for person in people:
-        f = open(f"{person.name}.txt", "w")
+        f = open(f"output\\{person.name}.txt", "w")
         f.write(f"You have been matched with: {person.match}!")
         f.close()
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
+    # Create output directory
+    os.makedirs("output", exist_ok=True)
     all_names = ["Peter", "Paige", "Rob", "Cindy", "Carrie", "Cody", "Dale"]
     people = [Person("Peter",["Paige", "Cindy"]),
               Person("Paige", ["Peter", "Rob"]),
