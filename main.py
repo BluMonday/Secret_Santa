@@ -37,13 +37,13 @@ def save_results(people):
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
     all_names = ["Peter", "Paige", "Rob", "Cindy", "Carrie", "Cody", "Dale"]
-    people = [Person("Peter",["Paige"]),
-              Person("Paige", ["Peter"]),
-              Person("Rob", ["Cindy"]),
-              Person("Cindy", ["Rob", "Carrie"]),
-              Person("Carrie", ["Cody", "Cindy"]),
-              Person("Cody", "Carrie"),
-              Person("Dale", ""),
+    people = [Person("Peter",["Paige", "Cindy"]),
+              Person("Paige", ["Peter", "Rob"]),
+              Person("Rob", ["Cindy", "Dale"]),
+              Person("Cindy", ["Rob", "Cody"]),
+              Person("Carrie", ["Cody", "Peter"]),
+              Person("Cody", ["Carrie", "Paige"]),
+              Person("Dale", ["Carrie"]),
               ]
     while True:
         try:
