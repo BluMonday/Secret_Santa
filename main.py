@@ -125,11 +125,12 @@ def save_results(people, pages_base_url):
 </html>
 """
 
-    os.makedirs("docs", exist_ok=True)
-    with open(os.path.join("docs", "index.html"), "w", encoding="utf-8") as file:
+    docs_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "docs")
+    os.makedirs(docs_dir, exist_ok=True)
+    with open(os.path.join(docs_dir, "index.html"), "w", encoding="utf-8") as file:
         file.write(page)
 
-    print("Generated docs\\index.html for GitHub Pages.")
+    print(f"Generated {os.path.join(docs_dir, 'index.html')} for GitHub Pages.")
     for person in people:
         print(f"{person.name}: {pages_base_url}/?p={codes[person.name]}")
 # Press the green button in the gutter to run the script.
