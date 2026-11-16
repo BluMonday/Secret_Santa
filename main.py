@@ -1,5 +1,10 @@
+import base64
+import json
 import random
 import os
+from urllib.parse import urlsplit
+
+PAGES_BASE_URL = "https://blumonday.github.io/Secret_Santa"
 
 class Person:
     def __init__(self, name, exclusions):
@@ -11,35 +16,124 @@ class Person:
     email = ""
     match = ""
 
-def cycle_check(people):
-    target_length = len(people)
-    i = 1
-    # keep track of where we start
-    first_person = people[0]
-    # init loop variables
-    current_person = first_person
-    next_person = [x for x in people if x.name == current_person.match][0]
-    while first_person != next_person:
-        i += 1
-        current_person = next_person
-        next_person = [x for x in people if x.name == current_person.match][0]
-    if i == target_length:
-        print("full cycle!")
-        return True
-    else:
-        print(f"not full cycle. Target: {target_length} Result: {i}")
+def find_matching(people):
+    assignments = {}
+
+    def search(unassigned, remaining_recipients):
+        if not unassigned:
+            return True
+
+        candidates_by_person = {}
+        for person in unassigned:
+            candidates = [
+                recipient
+                for recipient in remaining_recipients
+                if recipient != person.name
+                and recipient not in person.exclusions
+                and assignments.get(recipient) != person.name
+            ]
+            if not candidates:
+                return False
+            candidates_by_person[person.name] = candidates
+
+        fewest_candidates = min(len(candidates) for candidates in candidates_by_person.values())
+        most_constrained = [
+            person for person in unassigned
+            if len(candidates_by_person[person.name]) == fewest_candidates
+        ]
+        person = random.choice(most_constrained)
+        candidates = candidates_by_person[person.name]
+        random.shuffle(candidates)
+
+        for recipient in candidates:
+            assignments[person.name] = recipient
+            if search(
+                [other for other in unassigned if other != person],
+                remaining_recipients - {recipient},
+            ):
+                return True
+            del assignments[person.name]
+
         return False
 
-def save_results(people):
+    if search(people[:], {person.name for person in people}):
+        return assignments
+    return None
+
+def save_results(people, pages_base_url):
+    names = [person.name for person in people]
+    if not names:
+        raise ValueError("At least one participant is required.")
+    if len(names) != len(set(names)):
+        raise ValueError("Participant names must be unique.")
+    if any(not name or "\0" in name for name in names):
+        raise ValueError("Participant names must be nonempty and cannot contain null characters.")
+
+    parsed_url = urlsplit(pages_base_url)
+    if parsed_url.scheme != "https" or not parsed_url.netloc or parsed_url.query or parsed_url.fragment:
+        raise ValueError("Enter the HTTPS base URL for the GitHub Pages site.")
+    pages_base_url = pages_base_url.rstrip("/")
+
+    encoded_names = {name: name.encode("utf-8") for name in names}
+    padded_name_length = max(len(name) for name in encoded_names.values())
+    codes = {}
+    for name, encoded_name in encoded_names.items():
+        payload = encoded_name + b"\0" + b"\0" * (padded_name_length - len(encoded_name))
+        codes[name] = base64.urlsafe_b64encode(payload).decode("ascii").rstrip("=")
+
+    matches = {codes[person.name]: person.match for person in people}
+    matches_json = json.dumps(matches, ensure_ascii=True).replace("<", "\\u003c")
+    page = f"""<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="referrer" content="no-referrer">
+  <title>Secret Santa Match</title>
+  <style>
+    body {{ margin: 0; min-height: 100vh; display: grid; place-items: center;
+      background: #f3f5f2; color: #20352c; font: 18px/1.5 system-ui, sans-serif; }}
+    main {{ box-sizing: border-box; width: min(90%, 32rem); padding: 2rem;
+      border-radius: 1rem; background: white; text-align: center;
+      box-shadow: 0 0.5rem 2rem #20352c1a; }}
+    h1 {{ font-size: clamp(1.7rem, 8vw, 2.5rem); }}
+    #recipient {{ font-size: clamp(2rem, 10vw, 3rem); font-weight: 700; }}
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Your Secret Santa match</h1>
+    <p id="message">Open this page using your personal link.</p>
+    <p id="recipient" hidden></p>
+  </main>
+  <script id="match-data" type="application/json">{matches_json}</script>
+  <script>
+    const matches = JSON.parse(document.getElementById("match-data").textContent);
+    const code = new URLSearchParams(window.location.search).get("p");
+    const message = document.getElementById("message");
+    const recipient = document.getElementById("recipient");
+    if (code && Object.prototype.hasOwnProperty.call(matches, code)) {{
+      message.textContent = "You are giving a gift to:";
+      recipient.textContent = matches[code];
+      recipient.hidden = false;
+    }} else {{
+      message.textContent = "This link is invalid or no longer current. Ask the organizer for your link.";
+    }}
+  </script>
+</body>
+</html>
+"""
+
+    os.makedirs("docs", exist_ok=True)
+    with open(os.path.join("docs", "index.html"), "w", encoding="utf-8") as file:
+        file.write(page)
+
+    print("Generated docs\\index.html for GitHub Pages.")
     for person in people:
-        f = open(f"output\\{person.name}.txt", "w")
-        f.write(f"You have been matched with: {person.match}!")
-        f.close()
+        print(f"{person.name}: {pages_base_url}/?p={codes[person.name]}")
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
-    # Create output directory
-    os.makedirs("output", exist_ok=True)
-    all_names = ["Peter", "Paige", "Rob", "Cindy", "Carrie", "Cody", "Dale"]
     people = [Person("Peter",["Paige", "Cindy"]),
               Person("Paige", ["Peter", "Rob"]),
               Person("Rob", ["Cindy", "Dale"]),
@@ -48,25 +142,13 @@ if __name__ == '__main__':
               Person("Cody", ["Carrie", "Paige"]),
               Person("Dale", ["Carrie"]),
               ]
-    while True:
-        try:
-            # copy by value
-            remaining_names = all_names[:]
-            random.shuffle(people)
-            for person in people:
-                match_candidates = [x for x in remaining_names if x != person.name and x not in person.exclusions]
-                random.shuffle(match_candidates)
-                person.match = match_candidates[0]
-                remaining_names.remove(person.match)
-        except:
-            print("Invalid. Trying again...")
-            continue
-        else:
-            if cycle_check(people):
-                save_results(people)
-                break
-            else:
-                continue
+    matches = find_matching(people)
+    if matches is None:
+        print("No valid matching found.")
+    else:
+        for person in people:
+            person.match = matches[person.name]
+        save_results(people, PAGES_BASE_URL)
 
     # printout names for testing
     if False:
