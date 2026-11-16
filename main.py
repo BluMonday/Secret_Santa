@@ -92,18 +92,30 @@ def save_results(people, pages_base_url):
   <meta name="referrer" content="no-referrer">
   <title>Secret Santa Match</title>
   <style>
+    :root {{
+      --evergreen: #164b35;
+      --berry: #a32638;
+      --gold: #c9a85b;
+      --cream: #fffaf0;
+    }}
     body {{ margin: 0; min-height: 100vh; display: grid; place-items: center;
-      background: #f3f5f2; color: #20352c; font: 18px/1.5 system-ui, sans-serif; }}
+      padding: 1rem; box-sizing: border-box;
+      background: linear-gradient(135deg, #10452f, #1d6848 58%, #842538);
+      color: #20352c; font: 18px/1.5 system-ui, sans-serif; }}
     main {{ box-sizing: border-box; width: min(90%, 32rem); padding: 2rem;
-      border-radius: 1rem; background: white; text-align: center;
-      box-shadow: 0 0.5rem 2rem #20352c1a; }}
-    h1 {{ font-size: clamp(1.7rem, 8vw, 2.5rem); }}
-    #recipient {{ font-size: clamp(2rem, 10vw, 3rem); font-weight: 700; }}
+      border: 2px solid var(--gold); border-top: 0.5rem solid var(--berry);
+      border-radius: 1rem; background: var(--cream); text-align: center;
+      box-shadow: 0 0.5rem 2rem #09291955; }}
+    h1 {{ color: var(--evergreen); font-size: clamp(1.7rem, 8vw, 2.5rem); }}
+    h1::after {{ content: ""; display: block; width: 4rem; height: 3px;
+      margin: 0.75rem auto; border-radius: 2px; background: var(--berry); }}
+    #message {{ color: #526357; }}
+    #recipient {{ color: var(--berry); font-size: clamp(2rem, 10vw, 3rem); font-weight: 700; }}
   </style>
 </head>
 <body>
   <main>
-    <h1>Your Secret Santa match</h1>
+    <h1>Your Secret Santa Match</h1>
     <p id="message">Open this page using your personal link.</p>
     <p id="recipient" hidden></p>
   </main>
@@ -135,13 +147,13 @@ def save_results(people, pages_base_url):
         print(f"{person.name}: {pages_base_url}/?p={codes[person.name]}")
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
-    people = [Person("Peter",["Paige", "Cindy"]),
-              Person("Paige", ["Peter", "Rob"]),
-              Person("Rob", ["Cindy", "Dale"]),
-              Person("Cindy", ["Rob", "Cody"]),
-              Person("Carrie", ["Cody", "Peter"]),
-              Person("Cody", ["Carrie", "Paige"]),
-              Person("Dale", ["Carrie"]),
+    people = [Person("Peter",["Paige", "Cindy", "Rob"]),
+              Person("Paige", ["Peter", "Rob", "Cindy"]),
+              Person("Rob", ["Cindy", "Dale", "Carrie"]),
+              Person("Cindy", ["Rob", "Cody", "Dale"]),
+              Person("Carrie", ["Cody", "Peter", "Paige"]),
+              Person("Cody", ["Carrie", "Paige", "Peter"]),
+              Person("Dale", ["Carrie", "Cody"]),
               ]
     matches = find_matching(people)
     if matches is None:
