@@ -2,9 +2,12 @@ import base64
 import json
 import random
 import os
+import re
+from datetime import date
 from urllib.parse import urlsplit
 
 PAGES_BASE_URL = "https://blumonday.github.io/Secret_Santa"
+HISTORY_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "match_history.json")
 
 class Person:
     def __init__(self, name, exclusions):
@@ -16,8 +19,9 @@ class Person:
     email = ""
     match = ""
 
-def find_matching(people):
+def find_matching(people, history_exclusions=None):
     assignments = {}
+    history_exclusions = history_exclusions or {}
 
     def search(unassigned, remaining_recipients):
         if not unassigned:
@@ -30,6 +34,7 @@ def find_matching(people):
                 for recipient in remaining_recipients
                 if recipient != person.name
                 and recipient not in person.exclusions
+                and recipient not in history_exclusions.get(person.name, set())
                 and assignments.get(recipient) != person.name
             ]
             if not candidates:
@@ -60,6 +65,42 @@ def find_matching(people):
         return assignments
     return None
 
+def load_history():
+    with open(HISTORY_FILE, encoding="utf-8") as file:
+        history = json.load(file)
+    if not isinstance(history, dict):
+        raise ValueError("Match history must be a JSON object keyed by year.")
+    for year, assignments in history.items():
+        if not year.isdigit() or not isinstance(assignments, dict):
+            raise ValueError("Each match-history entry must map a year to participant assignments.")
+        if any(not isinstance(giver, str) or not isinstance(recipient, str)
+               for giver, recipient in assignments.items()):
+            raise ValueError(f"Assignments for {year} must map participant names to names.")
+    return history
+
+def save_history(history):
+    with open(HISTORY_FILE, "w", encoding="utf-8") as file:
+        json.dump(history, file, indent=2, sort_keys=True)
+        file.write("\n")
+
+def find_matching_with_history(people, history):
+    years = sorted(history, key=int)
+    participant_names = {person.name for person in people}
+
+    for oldest_year_index in range(len(years) + 1):
+        active_years = years[oldest_year_index:]
+        history_exclusions = {}
+        for year in active_years:
+            for giver, recipient in history[year].items():
+                if giver in participant_names:
+                    history_exclusions.setdefault(giver, set()).add(recipient)
+
+        matches = find_matching(people, history_exclusions)
+        if matches is not None:
+            return matches, active_years, years[:oldest_year_index]
+
+    return None, [], years
+
 def save_results(people, pages_base_url):
     names = [person.name for person in people]
     if not names:
@@ -81,9 +122,8 @@ def save_results(people, pages_base_url):
         payload = encoded_name + b"\0" + b"\0" * (padded_name_length - len(encoded_name))
         codes[name] = base64.urlsafe_b64encode(payload).decode("ascii").rstrip("=")
 
-    matches = {codes[person.name]: person.match for person in people}
-    matches_json = json.dumps(matches, ensure_ascii=True).replace("<", "\\u003c")
-    page = f"""<!doctype html>
+    def render_page(content):
+        return f"""<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
@@ -116,21 +156,34 @@ def save_results(people, pages_base_url):
 <body>
   <main>
     <h1>Your Secret Santa Match</h1>
-    <p id="message">Open this page using your personal link.</p>
+    {content}
     <p id="recipient" hidden></p>
   </main>
-  <script id="match-data" type="application/json">{matches_json}</script>
   <script>
-    const matches = JSON.parse(document.getElementById("match-data").textContent);
     const code = new URLSearchParams(window.location.search).get("p");
     const message = document.getElementById("message");
     const recipient = document.getElementById("recipient");
-    if (code && Object.prototype.hasOwnProperty.call(matches, code)) {{
-      message.textContent = "You are giving a gift to:";
-      recipient.textContent = matches[code];
-      recipient.hidden = false;
-    }} else {{
+    if (!code || !/^[A-Za-z0-9_-]+$/.test(code)) {{
       message.textContent = "This link is invalid or no longer current. Ask the organizer for your link.";
+    }} else {{
+      fetch("matches/" + code + ".json")
+        .then(response => {{
+          if (!response.ok) {{
+            throw new Error("Match not found");
+          }}
+          return response.json();
+        }})
+        .then(data => {{
+          if (typeof data.recipient !== "string") {{
+            throw new Error("Invalid match data");
+          }}
+          message.textContent = "You are giving a gift to:";
+          recipient.textContent = data.recipient;
+          recipient.hidden = false;
+        }})
+        .catch(() => {{
+          message.textContent = "This link is invalid or no longer current. Ask the organizer for your link.";
+        }});
     }}
   </script>
 </body>
@@ -138,30 +191,49 @@ def save_results(people, pages_base_url):
 """
 
     docs_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "docs")
+    matches_dir = os.path.join(docs_dir, "matches")
     os.makedirs(docs_dir, exist_ok=True)
+    os.makedirs(matches_dir, exist_ok=True)
+    for filename in os.listdir(matches_dir):
+        if re.fullmatch(r"[A-Za-z0-9_-]+\.json", filename):
+            os.remove(os.path.join(matches_dir, filename))
+
     with open(os.path.join(docs_dir, "index.html"), "w", encoding="utf-8") as file:
-        file.write(page)
+        file.write(render_page('<p id="message">Use your personal link to view your match.</p>'))
+
+    for person in people:
+        match_data_path = os.path.join(matches_dir, f"{codes[person.name]}.json")
+        with open(match_data_path, "w", encoding="utf-8") as file:
+            json.dump({"recipient": person.match}, file, ensure_ascii=True)
 
     print(f"Generated {os.path.join(docs_dir, 'index.html')} for GitHub Pages.")
     for person in people:
         print(f"{person.name}: {pages_base_url}/?p={codes[person.name]}")
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
-    people = [Person("Peter",["Paige", "Cindy", "Rob"]),
-              Person("Paige", ["Peter", "Rob", "Cindy"]),
-              Person("Rob", ["Cindy", "Dale", "Carrie"]),
-              Person("Cindy", ["Rob", "Cody", "Dale"]),
-              Person("Carrie", ["Cody", "Peter", "Paige"]),
-              Person("Cody", ["Carrie", "Paige", "Peter"]),
-              Person("Dale", ["Carrie", "Cody"]),
+    people = [Person("Peter",["Paige"]),
+              Person("Paige", ["Peter"]),
+              Person("Rob", ["Cindy"]),
+              Person("Cindy", ["Rob"]),
+              Person("Carrie", ["Cody"]),
+              Person("Cody", ["Carrie"]),
+              Person("Dale", []),
               ]
-    matches = find_matching(people)
+    history = load_history()
+    matches, active_years, dropped_years = find_matching_with_history(people, history)
     if matches is None:
         print("No valid matching found.")
     else:
+        if dropped_years:
+            print(f"Dropped oldest history years: {', '.join(dropped_years)}")
+        if active_years:
+            print(f"Applied history years: {', '.join(active_years)}")
         for person in people:
             person.match = matches[person.name]
         save_results(people, PAGES_BASE_URL)
+        history[str(date.today().year)] = matches
+        save_history(history)
+        print(f"Saved match history for {date.today().year}.")
 
     # printout names for testing
     if False:

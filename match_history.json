@@ -1,0 +1,29 @@
+{
+  "2024": {
+    "Carrie": "Peter",
+    "Cindy": "Cody",
+    "Cody": "Paige",
+    "Dale": "Carrie",
+    "Paige": "Rob",
+    "Peter": "Cindy",
+    "Rob": "Dale"
+  },
+  "2025": {
+    "Carrie": "Paige",
+    "Cindy": "Dale",
+    "Cody": "Peter",
+    "Dale": "Cody",
+    "Paige": "Cindy",
+    "Peter": "Rob",
+    "Rob": "Carrie"
+  },
+  "2026": {
+    "Carrie": "Dale",
+    "Cindy": "Peter",
+    "Cody": "Cindy",
+    "Dale": "Rob",
+    "Paige": "Cody",
+    "Peter": "Carrie",
+    "Rob": "Paige"
+  }
+}

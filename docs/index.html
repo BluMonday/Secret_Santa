@@ -31,21 +31,34 @@
 <body>
   <main>
     <h1>Your Secret Santa Match</h1>
-    <p id="message">Open this page using your personal link.</p>
+    <p id="message">Use your personal link to view your match.</p>
     <p id="recipient" hidden></p>
   </main>
-  <script id="match-data" type="application/json">{"UGV0ZXIAAA": "Dale", "UGFpZ2UAAA": "Cody", "Um9iAAAAAA": "Peter", "Q2luZHkAAA": "Carrie", "Q2FycmllAA": "Rob", "Q29keQAAAA": "Cindy", "RGFsZQAAAA": "Paige"}</script>
   <script>
-    const matches = JSON.parse(document.getElementById("match-data").textContent);
     const code = new URLSearchParams(window.location.search).get("p");
     const message = document.getElementById("message");
     const recipient = document.getElementById("recipient");
-    if (code && Object.prototype.hasOwnProperty.call(matches, code)) {
-      message.textContent = "You are giving a gift to:";
-      recipient.textContent = matches[code];
-      recipient.hidden = false;
-    } else {
+    if (!code || !/^[A-Za-z0-9_-]+$/.test(code)) {
       message.textContent = "This link is invalid or no longer current. Ask the organizer for your link.";
+    } else {
+      fetch("matches/" + code + ".json")
+        .then(response => {
+          if (!response.ok) {
+            throw new Error("Match not found");
+          }
+          return response.json();
+        })
+        .then(data => {
+          if (typeof data.recipient !== "string") {
+            throw new Error("Invalid match data");
+          }
+          message.textContent = "You are giving a gift to:";
+          recipient.textContent = data.recipient;
+          recipient.hidden = false;
+        })
+        .catch(() => {
+          message.textContent = "This link is invalid or no longer current. Ask the organizer for your link.";
+        });
     }
   </script>
 </body>
